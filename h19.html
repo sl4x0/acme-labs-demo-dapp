@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Acme Labs link launcher</title>
+<style>
+  body { font-family: -apple-system, system-ui, sans-serif; margin: 14px; background:#0f1117; color:#e8e8ee; }
+  h1 { font-size: 19px; }
+  p  { color:#b8b8c6; font-size: 13px; }
+  a { display:block; padding:12px; margin:8px 0; border-radius:8px; background:#24304a; color:#cfe0ff;
+      word-break:break-all; font-size:13px; }
+  code { font-size:11px; color:#9fe0a0; word-break:break-all; }
+</style>
+</head>
+<body>
+<h1>Acme Labs link launcher</h1>
+<p>Neutral demo page: two links that a page can show to a victim.</p>
+
+<a id="l-intent" href="intent://browse/https%3A%2F%2Fraw.githack.com%2Fsl4x0%2Facme-labs-demo-dapp%2Fmain%2Fh19_probe.html#Intent;scheme=slush;package=com.mystenlabs.suiwallet;end">A. intent://browse/&lt;attacker page&gt; (scheme=slush, package=com.mystenlabs.suiwallet)</a>
+
+<a id="l-applink" href="https://my.slush.app/browse/https%3A%2F%2Fraw.githack.com%2Fsl4x0%2Facme-labs-demo-dapp%2Fmain%2Fh19_probe.html">B. https://my.slush.app/browse/&lt;attacker page&gt;</a>
+
+<a id="l-scheme" href="slush://browse/https%3A%2F%2Fraw.githack.com%2Fsl4x0%2Facme-labs-demo-dapp%2Fmain%2Fh19_probe.html">C. slush://browse/&lt;attacker page&gt;</a>
+
+<p>Nested target: <code>https://raw.githack.com/sl4x0/acme-labs-demo-dapp/main/h19_probe.html</code></p>
+</body>
+</html>

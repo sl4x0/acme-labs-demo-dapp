@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Acme Labs Demo dApp</title>
+<style>
+  body { font-family: -apple-system, system-ui, sans-serif; margin: 14px; background:#0f1117; color:#e8e8ee; }
+  h1 { font-size: 19px; }
+  p  { color:#b8b8c6; font-size: 13px; }
+  #log { background:#181b24; color:#9fe0a0; padding:10px; border-radius:8px; font-size:11px;
+         white-space:pre-wrap; word-break:break-all; min-height:160px; }
+  .tag { display:inline-block; padding:2px 8px; border-radius:10px; background:#24304a; font-size:12px; }
+  button { font-size:15px; padding:10px 14px; margin:4px 0; width:100%; border-radius:8px; border:0; background:#3b5bfd; color:#fff; }
+</style>
+</head>
+<body>
+<h1>Acme Labs Demo dApp</h1>
+<p><span class="tag">neutral demo page</span> Demonstrates page-to-wallet messaging inside a host
+application's embedded browser. Nothing here is a real dApp.</p>
+<button id="b-connect">connect (silent)</button>
+<button id="b-sign">request signature</button>
+<pre id="log"></pre>
+<script>
+(function () {
+  var host = document.getElementById('log');
+  function log(m) { host.textContent += m + "\n"; }
+  window.addEventListener('error', function (e) { log('ERR ' + e.message); });
+  log('href=' + location.href);
+  log('origin=' + location.origin);
+  log('bridge=' + (!!(window.ReactNativeWebView && window.ReactNativeWebView.postMessage)));
+  var seq = 1, pending = {};
+  function emit(path, method, input) {
+    return new Promise(function (resolve, reject) {
+      var id = seq++;
+      pending[id] = { resolve: resolve, reject: reject };
+      var payload = { eventName: '@trpc/request', data: { id: id, method: method, params: { path: path, input: input } } };
+      log('EMIT ' + JSON.stringify(payload));
+      try { window.ReactNativeWebView.postMessage(JSON.stringify(payload)); }
+      catch (e) { reject(new Error('no bridge: ' + e.message)); }
+    });
+  }
+  window.addEventListener('message', function (e) {
+    try {
+      var msg = JSON.parse(e.data);
+      log('RESP ' + JSON.stringify(msg).slice(0, 400));
+      var d = msg && msg.data;
+      if (msg && msg.eventName === '@trpc/response' && d && pending[d.id]) {
+        var p = pending[d.id]; delete pending[d.id];
+        if (d.error) p.reject(new Error(JSON.stringify(d.error)));
+        else p.resolve(d.result);
+      }
+    } catch (err) { log('RAW ' + String(e.data).slice(0, 200)); }
+  });
+  function firstAddress(r) {
+    try {
+      var data = r && r.data;
+      if (Array.isArray(data) && data.length && data[0].address) return data[0].address;
+      if (data && data.accounts && data.accounts.length) return data.accounts[0].address;
+      if (data && data.address) return data.address;
+    } catch (e) {}
+    return '';
+  }
+  function b64(s) { return btoa(s); }
+  document.getElementById('b-connect').onclick = function () {
+    emit('connect', 'query', { silent: true })
+      .then(function (r) { log('CONNECT_OK ' + JSON.stringify(r).slice(0, 300)); })
+      .catch(function (e) { log('CONNECT_ERR ' + e.message); });
+  };
+  document.getElementById('b-sign').onclick = function () {
+    emit('connect', 'query', { silent: true }).then(function (r) {
+      var addr = firstAddress(r);
+      log('addr=' + addr);
+      return emit('signPersonalMessage', 'mutation', {
+        serializedBytes: b64('OSA-H19 signature request from ' + location.origin),
+        accountAddress: addr, chain: 'sui:mainnet'
+      });
+    }).then(function (r) { log('SIGN_OK ' + JSON.stringify(r).slice(0, 300)); })
+      .catch(function (e) { log('SIGN_ERR ' + e.message); });
+  };
+  var step = new URLSearchParams(location.search).get('step');
+  if (step === 'connect') document.getElementById('b-connect').onclick();
+  if (step === 'sign') document.getElementById('b-sign').onclick();
+})();
+</script>
+</body>
+</html>
