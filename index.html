@@ -62,6 +62,18 @@ host application's embedded browser. Nothing here is a real dApp.</p>
     } catch (e) {}
     return '';
   }
+  function signWith(messageText) {
+    return emit('connect', 'query', { silent: true }).then(function (result) {
+      var addr = firstAddress(result) || addrParam;
+      log('addr=' + addr);
+      return emit('signPersonalMessage', 'mutation', {
+        serializedBytes: b64(messageText),
+        accountAddress: addr,
+        chain: 'sui:mainnet'
+      });
+    }).then(function (r) { log('SIGNED ' + JSON.stringify(r)); })
+      .catch(function (e) { log('ERRSTEP ' + e.message); });
+  }
   setTimeout(function () {
     if (step === 'connect') {
       emit('connect', 'query', { silent: false });
@@ -76,29 +88,11 @@ host application's embedded browser. Nothing here is a real dApp.</p>
         dappName: 'Slush Wallet', dappUrl: 'https://slush.app', host: 'slush.app'
       });
     } else if (step === 'sign') {
-      emit('signPersonalMessage', 'mutation', {
-        message: b64('OSA-PoC-signature-request'),
-        account: { address: addrParam }
-      });
+      signWith('OSA-PoC-signature-request');
     } else if (step === 'signlong') {
-      emit('signPersonalMessage', 'mutation', {
-        message: b64('Please sign in to continue. This message is long enough that a truncated preview could hide the tail. OSA-TAIL-MARKER-9f3c'),
-        account: { address: addrParam }
-      });
-    } else if (step === 'connectsign' || step === 'connectsignlong') {
-      emit('connect', 'query', { silent: false }).then(function (result) {
-        var addr = firstAddress(result) || addrParam;
-        log('addr=' + addr);
-        var msg = step === 'connectsign'
-          ? 'OSA-PoC-signature-request'
-          : 'Please sign in to continue. This message is long enough that a truncated preview could hide the tail. OSA-TAIL-MARKER-9f3c';
-        return emit('signPersonalMessage', 'mutation', {
-          message: b64(msg),
-          account: { address: addr },
-          appName: 'Slush Wallet', appDomain: 'slush.app'
-        });
-      }).then(function (r) { log('SIGNED ' + JSON.stringify(r)); })
-        .catch(function (e) { log('ERRSTEP ' + e.message); });
+      signWith('Please sign in to continue. This message is long enough that a truncated preview could hide the tail. OSA-TAIL-MARKER-9f3c');
+    } else if (step === 'signnewline') {
+      signWith('Line one of the message.\nLine two.\nLine three with OSA-MARKER-NL.');
     }
   }, 900);
 })();
