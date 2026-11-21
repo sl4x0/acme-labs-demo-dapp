@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Acme Labs Demo</title>
+<style>
+  body { font-family: -apple-system, system-ui, sans-serif; margin: 16px; background:#0f1117; color:#e8e8ee; }
+  h1 { font-size: 20px; }
+  p  { color:#b8b8c6; font-size: 14px; }
+  #log { background:#181b24; color:#9fe0a0; padding:10px; border-radius:8px; font-size:11px;
+         white-space:pre-wrap; word-break:break-all; min-height:120px; }
+  .tag { display:inline-block; padding:2px 8px; border-radius:10px; background:#24304a; font-size:12px; }
+  button { font-size:16px; padding:10px 18px; margin-top:12px; border-radius:8px; border:0; background:#2b6cb0; color:#fff; }
+</style>
+</head>
+<body>
+<h1>Acme Labs Demo</h1>
+<p><span class="tag">neutral demo page</span> This page demonstrates page-to-wallet messaging inside a
+host application's embedded browser. Nothing here is a real dApp.</p>
+<pre id="log"></pre>
+<script>
+(function () {
+  var q = new URLSearchParams(location.search);
+  var logEl = document.getElementById('log');
+  function log(m) { logEl.textContent += m + "\n"; }
+  log('origin=' + location.origin);
+  log('href=' + location.href);
+  log('bridge=' + !!(window.ReactNativeWebView && window.ReactNativeWebView.postMessage));
+
+  // Host responses are injected into this document by global name; capture them.
+  window.__slushHallidayReceiver = function (m) {
+    window.__demoLast = m;
+    log('RESPONSE ' + (typeof m === 'string' ? m : JSON.stringify(m)));
+  };
+
+  function emit() {
+    var payload = {
+      type: 'signAuthMessageRequest',
+      payload: {
+        requestId: 'demo-' + Date.now(),
+        message: q.get('msg') || 'demo message',
+        address: q.get('addr') || '',
+        walletType: 'SUI'
+      }
+    };
+    log('POST ' + JSON.stringify(payload));
+    if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+      window.ReactNativeWebView.postMessage(JSON.stringify(payload));
+    }
+  }
+  window.__demoEmit = emit;
+  if (q.get('auto') === '1') { setTimeout(emit, 500); }
+  var b = document.createElement('button');
+  b.textContent = 'Continue';
+  b.addEventListener('click', emit);
+  document.body.appendChild(b);
+})();
+</script>
+</body>
+</html>
