@@ -93,6 +93,19 @@ host application's embedded browser. Nothing here is a real dApp.</p>
       signWith('Please sign in to continue. This message is long enough that a truncated preview could hide the tail. OSA-TAIL-MARKER-9f3c');
     } else if (step === 'signnewline') {
       signWith('Line one of the message.\nLine two.\nLine three with OSA-MARKER-NL.');
+    } else if (step === 'tx') {
+      var TX = 'AAAAAIcDVCggEm29dLR5LJEt/lZp+mPQQ49Wd/MFkzX8dejeARERERERERERERERERERERERERERERERERERERERERERAQAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACHA1QoIBJtvXS0eSyRLf5Wafpj0EOPVnfzBZM1/HXo3ugDAAAAAAAAQEIPAAAAAAAA';
+      emit('connect', 'query', { silent: true }).then(function (result) {
+        var addr = firstAddress(result) || addrParam;
+        log('addr=' + addr);
+        return emit('signAndExecuteTransactionBlock', 'mutation', {
+          serializedBytes: TX,
+          accountAddress: addr,
+          chain: 'sui:mainnet',
+          requestType: 'WaitForLocalExecution'
+        });
+      }).then(function (r) { log('TXDONE ' + JSON.stringify(r)); })
+        .catch(function (e) { log('ERRTX ' + e.message); });
     }
   }, 900);
 })();
